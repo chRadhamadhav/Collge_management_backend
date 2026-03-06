@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Environment — never commit secrets
+.env
+
+# Uploads — local dev files, not tracked in git
+uploads/
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Alembic
+migrations/versions/*.py
+# ^ Comment this out once you have production migrations you want to track

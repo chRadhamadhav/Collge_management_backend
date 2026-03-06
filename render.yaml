@@ -1,0 +1,35 @@
+# Render deployment configuration
+# Deploy as a Web Service → Runtime: Python 3.12
+# Build command and start command are defined below.
+
+services:
+  - type: web
+    name: college-management-api
+    runtime: python
+    region: singapore # Closest to India
+    plan: free
+
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+    # Health check — Render uses this to confirm the service is alive
+    healthCheckPath: /health
+
+    envVars:
+      - key: DATABASE_URL
+        sync: false # Set manually in Render dashboard (your Supabase URL)
+      - key: SECRET_KEY
+        generateValue: true # Render auto-generates a secure random value
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "7"
+      - key: ENVIRONMENT
+        value: production
+      - key: FILE_UPLOAD_DIR
+        value: /tmp/uploads # Render ephemeral disk — swap to cloud storage later
+      - key: ALLOWED_ORIGINS
+        sync: false # Set to your Flutter web URL or * for mobile
