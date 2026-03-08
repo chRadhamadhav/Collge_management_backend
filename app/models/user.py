@@ -12,10 +12,10 @@ from app.models.base import Base, TimestampMixin, new_uuid
 
 
 class UserRole(str, enum.Enum):
-    ADMIN = "admin"
-    HOD = "hod"
-    STAFF = "staff"
-    STUDENT = "student"
+    ADMIN = "ADMIN"
+    HOD = "HOD"
+    STAFF = "STAFF"
+    STUDENT = "STUDENT"
 
 
 class User(Base, TimestampMixin):

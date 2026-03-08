@@ -10,10 +10,10 @@ from app.models.base import Base, TimestampMixin, new_uuid
 
 
 class AnnouncementTarget(str, enum.Enum):
-    ALL = "all"
-    STUDENT = "student"
-    STAFF = "staff"
-    HOD = "hod"
+    ALL = "ALL"
+    STUDENT = "STUDENT"
+    STAFF = "STAFF"
+    HOD = "HOD"
 
 
 class Announcement(Base, TimestampMixin):

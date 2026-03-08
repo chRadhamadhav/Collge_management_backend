@@ -12,9 +12,9 @@ from app.models.base import Base, TimestampMixin, new_uuid
 
 
 class AttendanceStatus(str, enum.Enum):
-    PRESENT = "present"
-    ABSENT = "absent"
-    PENDING = "pending"
+    PRESENT = "PRESENT"
+    ABSENT = "ABSENT"
+    PENDING = "PENDING"
 
 
 class Attendance(Base, TimestampMixin):
