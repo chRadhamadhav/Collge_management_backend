@@ -40,7 +40,7 @@ def run_migrations_offline() -> None:
 async def run_migrations_online() -> None:
     """Run migrations against the live Supabase PostgreSQL database."""
     engine = create_async_engine(settings.database_url)
-    async with engine.connect() as conn:
+    async with engine.begin() as conn:
         await conn.run_sync(
             lambda sync_conn: context.configure(
                 connection=sync_conn,
