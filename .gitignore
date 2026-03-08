@@ -26,5 +26,5 @@ logs/
 Thumbs.db
 
 # Alembic
-migrations/versions/*.py
+# migrations/versions/*.py
 # ^ Comment this out once you have production migrations you want to track
