@@ -51,7 +51,9 @@ def require_role(*roles: str):
     async def _check_role(
         current_user: Annotated[dict, Depends(get_current_user)],
     ) -> dict:
-        if current_user.get("role") not in roles:
+        user_role = (current_user.get("role") or "").lower()
+        allowed_roles = [r.lower() for r in roles]
+        if user_role not in allowed_roles:
             raise ForbiddenError(
                 f"This endpoint requires one of the following roles: {', '.join(roles)}"
             )

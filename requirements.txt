@@ -13,3 +13,5 @@ pytest==8.3.3
 pytest-asyncio==0.24.0
 aiosqlite==0.20.0
 uvicorn[standard]==0.32.0 #server
+pandas==2.2.3
+openpyxl==3.1.5
