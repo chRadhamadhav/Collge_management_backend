@@ -17,7 +17,7 @@ from app.schemas.attendance import AttendanceSummary
 from app.schemas.exam import ExamMarkResponse
 from app.schemas.assignment import AssignmentResponse
 from app.schemas.timetable import TimetableResponse
-from app.schemas.student import StudentProfileResponse, StudentDashboardResponse
+from app.schemas.student import StudentProfileResponse, StudentDashboardResponse, StudentUpdate
 from app.schemas.material import MaterialCategoryResponse
 from app.schemas.event import EventResponse
 
@@ -43,6 +43,38 @@ async def get_student_profile(
         .where(Student.user_id == current_user["sub"])
     )
     student = result.scalar_one_or_none()
+    
+    if not student:
+        raise NotFoundError("Student Profile", current_user["sub"])
+
+    return {
+        "id": student.id,
+        "user_id": student.user_id,
+        "department_id": student.department_id,
+        "roll_number": student.roll_number,
+        "course": student.course,
+        "semester": student.semester,
+        "email": student.user.email,
+        "full_name": student.user.full_name,
+        "phone_number": student.user.phone,
+        "role": student.user.role.value,
+        "is_active": student.user.is_active,
+        "avatar_url": student.user.avatar_url,
+        "department_name": student.department.name if student.department else None,
+    }
+
+
+@router.put("/profile/", response_model=StudentProfileResponse)
+async def update_student_profile(
+    data: StudentUpdate,
+    current_user: StudentAccess,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update the profile details for the currently logged-in student."""
+    from app.repositories.student_repo import StudentRepository
+    
+    repo = StudentRepository(db)
+    student = await repo.update_profile(current_user["sub"], data)
     
     if not student:
         raise NotFoundError("Student Profile", current_user["sub"])

@@ -35,6 +35,13 @@ class StudentProfileResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class StudentUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+    course: Optional[str] = None
+    semester: Optional[str] = None
+
 class StudentDashboardResponse(BaseModel):
     attendance_percentage: float
     total_assignments: int
