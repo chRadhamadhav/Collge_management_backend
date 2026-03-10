@@ -80,12 +80,35 @@ def create_app() -> FastAPI:
             exc.error_code,
             exc.message,
         )
+        # Log stack trace for easier debugging of domain errors
+        import traceback
+        logger.error(traceback.format_exc())
+
         return JSONResponse(
             status_code=exc.status_code,
             content={
                 "success": False,
                 "error_code": exc.error_code,
                 "message": exc.message,
+            },
+        )
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+        """
+        Catches all unhandled exceptions and returns a consistent JSON response.
+        Prevents leaking raw traces or 404s/500s in default formats.
+        """
+        import traceback
+        logger.error("Unhandled error on {} {}: {}", request.method, request.url.path, str(exc))
+        logger.error(traceback.format_exc())
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected error occurred. Please check server logs.",
             },
         )
 

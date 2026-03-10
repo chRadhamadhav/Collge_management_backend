@@ -40,3 +40,33 @@ class HODProfileResponse(BaseModel):
     department_name: str
     qualifications: str | None
     designation: str
+
+class HODSubjectResponse(BaseModel):
+    model_config = {"from_attributes": True}
+    id: str
+    name: str
+    code: str
+
+class HODTimetableResponse(BaseModel):
+    id: str
+    subject_id: str
+    subject_name: str
+    subject_code: str
+    day_of_week: str
+    start_time: str
+    end_time: str
+    room: str
+
+class HODStudentResponse(BaseModel):
+    id: str
+    name: str
+    roll_number: str
+    avatar_url: str | None
+
+class HODExamMarkResponse(BaseModel):
+    id: str
+    student_id: str
+    student_name: str
+    roll_number: str
+    marks_obtained: float
+    is_absent: bool

@@ -4,7 +4,7 @@ Maps to Flutter's MaterialCategory and CourseMaterial Hive models.
 """
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, new_uuid
@@ -13,6 +13,7 @@ from app.models.base import Base, new_uuid
 class MaterialCategory(Base):
     """A named grouping of study materials within a subject (e.g., 'Lecture Notes', 'Lab Manuals')."""
     __tablename__ = "material_categories"
+    __table_args__ = (UniqueConstraint("name", "subject_id", name="uq_category_name_subject"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     name: Mapped[str] = mapped_column(String(255), nullable=False)

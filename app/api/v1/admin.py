@@ -13,6 +13,7 @@ from app.repositories.user_repo import UserRepository
 from app.repositories.admin_repo import AdminRepository
 from app.schemas.user import UserCreate, UserListResponse, UserResponse, UserUpdate
 from app.schemas.admin import AdminDashboardStats
+from app.schemas.subject import SubjectCreate, SubjectResponse
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -51,7 +52,14 @@ async def create_user(
 ) -> UserResponse:
     """Create a new user account (student, staff, HOD, or admin)."""
     try:
+        from app.core.exceptions import ConflictError
         repo = UserRepository(db)
+        
+        # Explicit check for existing email to return a 409 Conflict instead of 500 Integrity error
+        existing = await repo.get_by_email(data.email)
+        if existing:
+            raise ConflictError("User", "email", data.email)
+            
         user = await repo.create(data)
         return user
     except Exception as e:
@@ -155,3 +163,22 @@ async def bulk_create_users(
         "created_count": created_count,
         "errors": errors
     }
+
+@router.get("/subjects", response_model=list[SubjectResponse])
+async def list_subjects(
+    _: AdminOnly,
+    db: AsyncSession = Depends(get_db),
+) -> list[SubjectResponse]:
+    """List all subjects in the system."""
+    repo = AdminRepository(db)
+    return await repo.list_subjects()
+
+@router.post("/subjects", response_model=SubjectResponse, status_code=201)
+async def create_subject(
+    data: SubjectCreate,
+    _: AdminOnly,
+    db: AsyncSession = Depends(get_db),
+) -> SubjectResponse:
+    """Create a new subject."""
+    repo = AdminRepository(db)
+    return await repo.create_subject(data)

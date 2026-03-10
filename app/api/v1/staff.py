@@ -28,7 +28,7 @@ StaffAccess = Annotated[dict, Depends(require_role("staff", "hod", "admin"))]
 
 # ─── Profile & Dashboard ──────────────────────────────────────────────────────
 
-@router.get("/profile", response_model=StaffProfileResponse)
+@router.get("/profile/", response_model=StaffProfileResponse)
 async def get_staff_profile(
     current_user: StaffAccess,
     db: AsyncSession = Depends(get_db),
@@ -66,7 +66,7 @@ async def get_staff_profile(
     }
 
 
-@router.get("/dashboard", response_model=StaffDashboardResponse)
+@router.get("/dashboard/", response_model=StaffDashboardResponse)
 async def get_staff_dashboard(
     current_user: StaffAccess,
     db: AsyncSession = Depends(get_db),
@@ -86,51 +86,62 @@ async def get_staff_dashboard(
     if not staff:
         raise NotFoundError("Staff Profile", current_user["sub"])
         
-    # For now, MVP approach: Staff's subjects
-    subjects_result = await db.execute(select(Subject).where(Subject.department_id == staff.department_id))
+    # Total Subjects taught by THIS staff member
+    subjects_result = await db.execute(select(Subject).where(Subject.staff_id == staff.id))
     subjects = subjects_result.scalars().all()
     subject_ids = [s.id for s in subjects]
-    
-    # Total Subjects
     total_subjects = len(subject_ids)
     
-    # Total Students (in their department)
+    # Total Students (in their department - keeping department-wide for now)
     total_students_res = await db.execute(
         select(func.count(Student.id)).where(Student.department_id == staff.department_id)
     )
     total_students = total_students_res.scalar_one_or_none() or 0
     
-    # Total Materials
-    # Assuming materials belong to the subjects in their department
+    # Total Materials across their subjects
     if total_subjects > 0:
         total_materials_res = await db.execute(
             select(func.count(CourseMaterial.id))
             .join(CourseMaterial.category)
-            .where(CourseMaterial.category.has(subject_id=subject_ids[0])) # Simplified
+            .where(CourseMaterial.category.has(Subject.id.in_(subject_ids)))
         )
         total_materials = total_materials_res.scalar_one_or_none() or 0
         
-        # Total Assignments
+        # Total Assignments across their subjects
         total_assignments_res = await db.execute(
             select(func.count(Assignment.id))
             .where(Assignment.subject_id.in_(subject_ids))
         )
         total_assignments = total_assignments_res.scalar_one_or_none() or 0
+
+        # Pending Assignments (ungraded submissions)
+        from app.models.assignment import AssignmentSubmission
+        pending_assignments_res = await db.execute(
+            select(func.count(AssignmentSubmission.id))
+            .join(AssignmentSubmission.assignment)
+            .where(
+                Assignment.subject_id.in_(subject_ids),
+                AssignmentSubmission.marks_given == None
+            )
+        )
+        pending_assignments = pending_assignments_res.scalar_one_or_none() or 0
     else:
         total_materials = 0
         total_assignments = 0
+        pending_assignments = 0
 
     return {
         "total_subjects": total_subjects,
         "total_students": total_students,
         "total_materials": total_materials,
         "total_assignments": total_assignments,
+        "pending_assignments": pending_assignments,
     }
 
 
 # ─── Subjects & Students ──────────────────────────────────────────────────────
 
-@router.get("/subjects", response_model=list[SubjectResponse])
+@router.get("/subjects/", response_model=list[SubjectResponse])
 async def list_subjects(
     current_user: StaffAccess,
     db: AsyncSession = Depends(get_db),
@@ -150,7 +161,7 @@ async def list_subjects(
     return subjects.scalars().all()
 
 
-@router.get("/subjects/{subject_id}/students", response_model=list[StudentResponse])
+@router.get("/subjects/{subject_id}/students/", response_model=list[StudentResponse])
 async def list_students_for_subject(
     subject_id: str,
     _: StaffAccess,
@@ -177,7 +188,7 @@ async def list_students_for_subject(
 
 # ─── Attendance ───────────────────────────────────────────────────────────────
 
-@router.post("/attendance", status_code=204)
+@router.post("/attendance/", status_code=204)
 async def submit_attendance(
     data: AttendanceBulkCreate,
     _: StaffAccess,
@@ -190,7 +201,7 @@ async def submit_attendance(
 
 # ─── Materials ────────────────────────────────────────────────────────────────
 
-@router.post("/materials/categories", response_model=MaterialCategoryResponse, status_code=201)
+@router.post("/materials/categories/", response_model=MaterialCategoryResponse, status_code=201)
 async def create_category(
     data: MaterialCategoryCreate,
     _: StaffAccess,
@@ -201,7 +212,7 @@ async def create_category(
     return await repo.create_category(data)
 
 
-@router.get("/materials/{subject_id}", response_model=list[MaterialCategoryResponse])
+@router.get("/materials/{subject_id}/", response_model=list[MaterialCategoryResponse])
 async def list_materials(
     subject_id: str,
     _: StaffAccess,
@@ -212,7 +223,7 @@ async def list_materials(
     return await repo.list_categories(subject_id)
 
 
-@router.post("/materials/{category_id}/upload", response_model=CourseMaterialResponse, status_code=201)
+@router.post("/materials/{category_id}/upload/", response_model=CourseMaterialResponse, status_code=201)
 async def upload_material(
     category_id: str,
     _: StaffAccess,
@@ -225,7 +236,7 @@ async def upload_material(
     return await repo.add_file(category_id, file.filename or "file", file_url)
 
 
-@router.delete("/materials/{material_id}", status_code=204)
+@router.delete("/materials/{material_id}/", status_code=204)
 async def delete_material(
     material_id: str,
     _: StaffAccess,
@@ -242,7 +253,7 @@ async def delete_material(
 
 # ─── Assignments ──────────────────────────────────────────────────────────────
 
-@router.post("/assignments", response_model=AssignmentResponse, status_code=201)
+@router.post("/assignments/", response_model=AssignmentResponse, status_code=201)
 async def create_assignment(
     data: AssignmentCreate,
     current_user: StaffAccess,
@@ -253,7 +264,7 @@ async def create_assignment(
     return await repo.create(data, created_by_id=current_user["sub"])
 
 
-@router.get("/assignments/{subject_id}", response_model=list[AssignmentResponse])
+@router.get("/assignments/{subject_id}/", response_model=list[AssignmentResponse])
 async def list_assignments(
     subject_id: str,
     _: StaffAccess,
@@ -264,7 +275,31 @@ async def list_assignments(
     return await repo.list_by_subject(subject_id)
 
 
-@router.delete("/assignments/{assignment_id}", status_code=204)
+@router.get("/assignments/", response_model=list[AssignmentResponse])
+async def list_staff_assignments(
+    current_user: StaffAccess,
+    db: AsyncSession = Depends(get_db),
+) -> list[AssignmentResponse]:
+    """List all assignments for all subjects in the staff's department."""
+    from sqlalchemy import select
+    from app.models.staff import Staff
+    from app.models.subject import Subject
+
+    # Find staff/dept
+    res = await db.execute(select(Staff).where(Staff.user_id == current_user["sub"]))
+    staff = res.scalar_one_or_none()
+    if not staff:
+        raise NotFoundError("Staff", current_user["sub"])
+
+    # Find department subjects
+    subj_res = await db.execute(select(Subject).where(Subject.department_id == staff.department_id))
+    subject_ids = [s.id for s in subj_res.scalars().all()]
+
+    repo = AssignmentRepository(db)
+    return await repo.list_all(subject_ids)
+
+
+@router.delete("/assignments/{assignment_id}/", status_code=204)
 async def delete_assignment(
     assignment_id: str,
     _: StaffAccess,
@@ -278,7 +313,7 @@ async def delete_assignment(
     await repo.delete(assignment)
 
 
-@router.get("/assignments/{assignment_id}/submissions")
+@router.get("/assignments/{assignment_id}/submissions/")
 async def get_submissions(
     assignment_id: str,
     _: StaffAccess,
@@ -289,7 +324,7 @@ async def get_submissions(
     return await repo.get_submissions(assignment_id)
 
 
-@router.put("/submissions/{submission_id}/grade", status_code=200)
+@router.put("/submissions/{submission_id}/grade/", status_code=200)
 async def grade_submission(
     submission_id: str,
     data: SubmissionGrade,
@@ -306,18 +341,20 @@ async def grade_submission(
 
 # ─── Exams ────────────────────────────────────────────────────────────────────
 
-@router.post("/exams", response_model=ExamResponse, status_code=201)
+@router.post("/exams/", response_model=ExamResponse, status_code=201)
 async def create_exam(
     data: ExamCreate,
     _: StaffAccess,
     db: AsyncSession = Depends(get_db),
 ) -> ExamResponse:
     """Create an exam for a subject."""
+    # Ensure data is consistent - Pydantic handles ISO strings, 
+    # but we ensure the repository gets what it needs.
     repo = ExamRepository(db)
     return await repo.create_exam(data)
 
 
-@router.get("/exams", response_model=list[ExamResponse])
+@router.get("/exams/", response_model=list[ExamResponse])
 async def list_exams(
     current_user: StaffAccess,
     db: AsyncSession = Depends(get_db),
@@ -339,7 +376,7 @@ async def list_exams(
     return exams.scalars().all()
 
 
-@router.get("/exams/{exam_id}/marks", response_model=list[ExamMarkResponse])
+@router.get("/exams/{exam_id}/marks/", response_model=list[ExamMarkResponse])
 async def get_exam_marks(
     exam_id: str,
     _: StaffAccess,
@@ -350,7 +387,7 @@ async def get_exam_marks(
     return await repo.get_exam_marks(exam_id)
 
 
-@router.post("/exams/{exam_id}/marks", status_code=204)
+@router.post("/exams/{exam_id}/marks/", status_code=204)
 async def enter_marks(
     exam_id: str,
     data: ExamMarksBulkCreate,
@@ -362,7 +399,7 @@ async def enter_marks(
     await repo.bulk_save_marks(data)
 
 
-@router.delete("/exams/{exam_id}", status_code=204)
+@router.delete("/exams/{exam_id}/", status_code=204)
 async def delete_exam(
     exam_id: str,
     _: StaffAccess,

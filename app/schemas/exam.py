@@ -11,8 +11,8 @@ class ExamCreate(BaseModel):
     subject_id: str
     department_id: str
     exam_date: datetime
-    exam_time: str
-    location: str
+    exam_time: str = Field(default="10:00 AM - 01:00 PM")
+    location: str = Field(default="TBA")
     invigilator_id: str | None = None
     max_marks: float = Field(gt=0, default=100.0)
     passing_marks: float = Field(gt=0, default=35.0)

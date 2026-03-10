@@ -58,6 +58,16 @@ class AssignmentRepository:
         )
         return result.scalars().all()
 
+    async def list_all(self, subject_ids: list[str]) -> list[Assignment]:
+        """List all assignments belonging to the provided subject IDs."""
+        result = await self._db.execute(
+            select(Assignment)
+            .options(selectinload(Assignment.topics))
+            .where(Assignment.subject_id.in_(subject_ids))
+            .order_by(Assignment.due_date.desc())
+        )
+        return result.scalars().all()
+
     async def get_submissions(self, assignment_id: str) -> list[AssignmentSubmission]:
         result = await self._db.execute(
             select(AssignmentSubmission).where(

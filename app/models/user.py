@@ -34,6 +34,12 @@ class User(Base, TimestampMixin):
     info: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     # Back-references populated by Student/Staff models
-    student_profile: Mapped["Student"] = relationship(back_populates="user", uselist=False)  # noqa: F821
-    staff_profile: Mapped["Staff"] = relationship(back_populates="user", uselist=False)  # noqa: F821
-    announcements: Mapped[list["Announcement"]] = relationship(back_populates="created_by_user")  # noqa: F821
+    student_profile: Mapped["Student"] = relationship(
+        back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )  # noqa: F821
+    staff_profile: Mapped["Staff"] = relationship(
+        back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )  # noqa: F821
+    announcements: Mapped[list["Announcement"]] = relationship(
+        back_populates="created_by_user", cascade="all, delete-orphan"
+    )  # noqa: F821

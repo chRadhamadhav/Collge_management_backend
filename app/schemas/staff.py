@@ -26,3 +26,4 @@ class StaffDashboardResponse(BaseModel):
     total_students: int
     total_materials: int
     total_assignments: int
+    pending_assignments: int

@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 20
 
     # CORS
-    allowed_origins: list[str] = ["http://localhost:3000", "http://localhost:8080"]
+    allowed_origins: list[str] = ["*"]
 
     # Runtime environment — controls log verbosity and error detail
     environment: str = "development"

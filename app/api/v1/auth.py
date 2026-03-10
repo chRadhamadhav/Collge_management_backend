@@ -16,21 +16,21 @@ from app.services.file_service import FileService
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login/", response_model=TokenResponse)
 async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     """Authenticate with email + password and receive JWT access and refresh tokens."""
     service = AuthService(UserRepository(db))
     return await service.login(data)
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh/", response_model=TokenResponse)
 async def refresh(data: RefreshRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     """Exchange a valid refresh token for a new access token."""
     service = AuthService(UserRepository(db))
     return await service.refresh(data)
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me/", response_model=UserResponse)
 async def get_me(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -43,7 +43,7 @@ async def get_me(
     return user
 
 
-@router.patch("/me", response_model=UserResponse)
+@router.patch("/me/", response_model=UserResponse)
 async def update_me(
     data: UserUpdate,
     current_user: dict = Depends(get_current_user),
@@ -74,7 +74,7 @@ async def update_me(
     return user
 
 
-@router.post("/me/avatar", response_model=UserResponse)
+@router.post("/me/avatar/", response_model=UserResponse)
 async def upload_avatar(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
@@ -97,7 +97,7 @@ async def upload_avatar(
     return user
 
 
-@router.post("/logout")
+@router.post("/logout/")
 async def logout(current_user: dict = Depends(get_current_user)) -> dict:
     """
     Log out the current user. 

@@ -15,6 +15,7 @@ build/
 # Uploads — local dev files, not tracked in git
 uploads/
 logs/
+scripts/
 
 # IDE
 .vscode/

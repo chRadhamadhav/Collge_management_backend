@@ -18,6 +18,7 @@ from app.schemas.exam import ExamMarkResponse
 from app.schemas.assignment import AssignmentResponse
 from app.schemas.timetable import TimetableResponse
 from app.schemas.student import StudentProfileResponse, StudentDashboardResponse
+from app.schemas.material import MaterialCategoryResponse
 from app.schemas.event import EventResponse
 
 router = APIRouter(prefix="/student", tags=["student"])
@@ -26,7 +27,7 @@ StudentAccess = Annotated[dict, Depends(require_role("student", "staff", "hod", 
 
 # ─── Profile & Dashboard ──────────────────────────────────────────────────────
 
-@router.get("/profile", response_model=StudentProfileResponse)
+@router.get("/profile/", response_model=StudentProfileResponse)
 async def get_student_profile(
     current_user: StudentAccess,
     db: AsyncSession = Depends(get_db),
@@ -63,7 +64,7 @@ async def get_student_profile(
     }
 
 
-@router.get("/dashboard", response_model=StudentDashboardResponse)
+@router.get("/dashboard/", response_model=StudentDashboardResponse)
 async def get_student_dashboard(
     current_user: StudentAccess,
     db: AsyncSession = Depends(get_db),
@@ -119,7 +120,7 @@ async def get_student_dashboard(
 
 # ─── Academic ─────────────────────────────────────────────────────────────────
 
-@router.get("/attendance", response_model=list[dict])
+@router.get("/attendance/", response_model=list[dict])
 async def my_attendance(
     current_user: StudentAccess,
     db: AsyncSession = Depends(get_db),
@@ -147,7 +148,7 @@ async def my_attendance(
     return raw
 
 
-@router.get("/results", response_model=list[ExamMarkResponse])
+@router.get("/results/", response_model=list[ExamMarkResponse])
 async def my_results(
     current_user: StudentAccess,
     db: AsyncSession = Depends(get_db),
@@ -165,7 +166,7 @@ async def my_results(
     return await repo.get_student_results(student.id)
 
 
-@router.get("/assignments", response_model=list[AssignmentResponse])
+@router.get("/assignments/", response_model=list[AssignmentResponse])
 async def my_assignments(
     current_user: StudentAccess,
     db: AsyncSession = Depends(get_db),
@@ -192,7 +193,7 @@ async def my_assignments(
     return assignments.scalars().all()
 
 
-@router.post("/assignments/{assignment_id}/submit", status_code=201)
+@router.post("/assignments/{assignment_id}/submit/", status_code=201)
 async def submit_assignment(
     assignment_id: str,
     current_user: StudentAccess,
@@ -214,7 +215,31 @@ async def submit_assignment(
     return await repo.submit(assignment_id, student.id, file_url)
 
 
-@router.get("/materials/{subject_id}")
+@router.get("/materials")
+async def my_materials(
+    current_user: StudentAccess,
+    db: AsyncSession = Depends(get_db),
+) -> list:
+    """Return all study materials for the student's department (flattened)."""
+    from sqlalchemy import select
+    from app.models.student import Student
+    from app.models.subject import Subject
+
+    # Find student/dept
+    res = await db.execute(select(Student).where(Student.user_id == current_user["sub"]))
+    student = res.scalar_one_or_none()
+    if not student:
+        raise NotFoundError("Student", current_user["sub"])
+
+    # Find department subjects
+    subj_res = await db.execute(select(Subject).where(Subject.department_id == student.department_id))
+    subject_ids = [s.id for s in subj_res.scalars().all()]
+
+    repo = MaterialRepository(db)
+    return await repo.list_all_for_subjects(subject_ids)
+
+
+@router.get("/materials/{subject_id}/")
 async def study_materials(
     subject_id: str,
     _: StudentAccess,
@@ -225,7 +250,7 @@ async def study_materials(
     return await repo.list_categories(subject_id)
 
 
-@router.get("/timetable/{department_id}", response_model=list[TimetableResponse])
+@router.get("/timetable/{department_id}/", response_model=list[TimetableResponse])
 async def timetable(
     department_id: str,
     _: StudentAccess,
@@ -241,7 +266,7 @@ async def timetable(
     return result.scalars().all()
 
 
-@router.get("/timetable", response_model=list[TimetableResponse])
+@router.get("/timetable/", response_model=list[TimetableResponse])
 async def my_timetable(
     current_user: StudentAccess,
     db: AsyncSession = Depends(get_db),
@@ -284,7 +309,7 @@ async def my_timetable(
     ]
 
 
-@router.get("/exams")
+@router.get("/exams/")
 async def my_exams(
     current_user: StudentAccess,
     db: AsyncSession = Depends(get_db),
@@ -328,20 +353,20 @@ async def my_exams(
     ]
 
 
-@router.get("/materials")
+@router.get("/materials/")
 async def my_materials(
     current_user: StudentAccess,
     db: AsyncSession = Depends(get_db),
-) -> list:
+) -> list[MaterialCategoryResponse]:
     """
     Return all study materials for subjects taught in the student's department.
-    Groups them by subject for easy category-based filtering on the frontend.
+    Returns categories which contain the nested files.
     """
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     from app.models.student import Student
     from app.models.subject import Subject
-    from app.models.material import Material
+    from app.models.material import MaterialCategory
 
     result = await db.execute(select(Student).where(Student.user_id == current_user["sub"]))
     student = result.scalar_one_or_none()
@@ -354,29 +379,35 @@ async def my_materials(
     )
     subjects = subjects_res.scalars().all()
     subject_ids = [s.id for s in subjects]
-    subject_map = {s.id: s for s in subjects}
 
     if not subject_ids:
         return []
 
-    materials_res = await db.execute(
-        select(Material).where(Material.subject_id.in_(subject_ids)).order_by(Material.created_at.desc())
+    # Fetch categories with their materials for all relevant subjects
+    categories_res = await db.execute(
+        select(MaterialCategory)
+        .options(selectinload(MaterialCategory.materials), selectinload(MaterialCategory.subject))
+        .where(MaterialCategory.subject_id.in_(subject_ids))
+        .order_by(MaterialCategory.date_created.desc())
     )
-    materials = materials_res.scalars().all()
-
-    return [
-        {
-            "id": m.id,
-            "title": m.title,
-            "file_url": m.file_url,
-            "category": m.category,
-            "subject_id": m.subject_id,
-            "subject_name": subject_map[m.subject_id].name if m.subject_id in subject_map else None,
-            "subject_code": subject_map[m.subject_id].code if m.subject_id in subject_map else None,
-            "created_at": m.created_at,
-        }
-        for m in materials
-    ]
+    categories = categories_res.scalars().all()
+    
+    # Flatten the response: Return a list of all materials across all categories
+    flattened_materials = []
+    for cat in categories:
+        for mat in cat.materials:
+            flattened_materials.append({
+                "id": mat.id,
+                "title": mat.file_name,
+                "file_url": mat.file_url,
+                "category": cat.name,
+                "subject_name": cat.subject.name if cat.subject else "Unknown",
+                "subject_code": cat.subject.code if cat.subject else "General",
+                "date_added": mat.date_added,
+                "created_at": mat.date_added.isoformat() if mat.date_added else None
+            })
+            
+    return flattened_materials
 
 @router.get('/events', response_model=list[EventResponse])
 async def get_student_events(

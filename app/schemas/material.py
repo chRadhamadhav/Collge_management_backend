@@ -17,7 +17,8 @@ class MaterialCategoryResponse(BaseModel):
     id: str
     name: str
     subject_id: str
-    date_created: datetime
+    created_at: datetime = Field(validation_alias="date_created")
+    materials: list["CourseMaterialResponse"] = []
 
 
 class CourseMaterialResponse(BaseModel):
@@ -27,4 +28,4 @@ class CourseMaterialResponse(BaseModel):
     category_id: str
     file_name: str
     file_url: str
-    date_added: datetime
+    created_at: datetime = Field(validation_alias="date_added")

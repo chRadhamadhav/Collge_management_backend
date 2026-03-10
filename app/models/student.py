@@ -25,6 +25,12 @@ class Student(Base, TimestampMixin):
     # Relationships
     user: Mapped["User"] = relationship(back_populates="student_profile")  # noqa: F821
     department: Mapped["Department"] = relationship(back_populates="students")  # noqa: F821
-    attendance_records: Mapped[list["Attendance"]] = relationship(back_populates="student")  # noqa: F821
-    exam_marks: Mapped[list["ExamMark"]] = relationship(back_populates="student")  # noqa: F821
-    assignment_submissions: Mapped[list["AssignmentSubmission"]] = relationship(back_populates="student")  # noqa: F821
+    attendance_records: Mapped[list["Attendance"]] = relationship(
+        back_populates="student", cascade="all, delete-orphan"
+    )  # noqa: F821
+    exam_marks: Mapped[list["ExamMark"]] = relationship(
+        back_populates="student", cascade="all, delete-orphan"
+    )  # noqa: F821
+    assignment_submissions: Mapped[list["AssignmentSubmission"]] = relationship(
+        back_populates="student", cascade="all, delete-orphan"
+    )  # noqa: F821

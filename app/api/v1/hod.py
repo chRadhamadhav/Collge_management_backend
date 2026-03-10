@@ -12,14 +12,14 @@ from app.repositories.exam_repo import ExamRepository
 from app.schemas.exam import ExamCreate, ExamMarksBulkCreate, ExamMarkResponse, ExamResponse, ExamWithSubjectResponse
 from app.schemas.timetable import AnnouncementCreate, AnnouncementResponse, TimetableCreate, TimetableResponse
 from app.repositories.hod_repo import HODRepository
-from app.schemas.hod import HODDashboardResponse, StaffMemberResponse
+from app.schemas.hod import HODDashboardResponse, StaffMemberResponse, HODSubjectResponse, HODTimetableResponse, HODStudentResponse, HODExamMarkResponse
 from app.core.exceptions import ForbiddenError
 
 router = APIRouter(prefix="/hod", tags=["hod"])
 
 HODOnly = Annotated[dict, Depends(require_role("hod", "admin"))]
 
-@router.get("/dashboard", response_model=HODDashboardResponse)
+@router.get("/dashboard/", response_model=HODDashboardResponse)
 async def get_hod_dashboard(
     current_user: HODOnly,
     db: AsyncSession = Depends(get_db),
@@ -35,7 +35,7 @@ async def get_hod_dashboard(
 
 
 
-@router.post("/exams", response_model=ExamResponse, status_code=201)
+@router.post("/exams/", response_model=ExamResponse, status_code=201)
 async def create_exam(
     data: ExamCreate,
     _: HODOnly,
@@ -46,7 +46,7 @@ async def create_exam(
     return await repo.create_exam(data)
 
 
-@router.get("/exams", response_model=list[ExamWithSubjectResponse])
+@router.get("/exams/", response_model=list[ExamWithSubjectResponse])
 async def list_exams(
     current_user: HODOnly,
     db: AsyncSession = Depends(get_db),
@@ -61,7 +61,7 @@ async def list_exams(
     exam_repo = ExamRepository(db)
     return await exam_repo.list_by_department(department_id)
 
-@router.get("/faculty", response_model=list[StaffMemberResponse])
+@router.get("/faculty/", response_model=list[StaffMemberResponse])
 async def list_department_faculty(
     current_user: HODOnly,
     db: AsyncSession = Depends(get_db),
@@ -88,7 +88,7 @@ async def list_department_faculty(
 
 from app.schemas.hod import FacultyDutyResponse, HODProfileResponse
 
-@router.get("/profile", response_model=HODProfileResponse)
+@router.get("/profile/", response_model=HODProfileResponse)
 async def get_hod_profile(
     current_user: HODOnly,
     db: AsyncSession = Depends(get_db),
@@ -123,7 +123,7 @@ async def get_hod_profile(
         designation="HEAD OF DEPARTMENT"
     )
 
-@router.get("/faculty/duty", response_model=list[FacultyDutyResponse])
+@router.get("/faculty/duty/", response_model=list[FacultyDutyResponse])
 async def list_faculty_on_duty(
     current_user: HODOnly,
     db: AsyncSession = Depends(get_db),
@@ -171,7 +171,7 @@ from pydantic import BaseModel
 class AssignInvigilatorRequest(BaseModel):
     staff_id: str
 
-@router.patch("/exams/{exam_id}/assign", response_model=ExamResponse)
+@router.patch("/exams/{exam_id}/assign/", response_model=ExamResponse)
 async def assign_invigilator(
     exam_id: str,
     data: AssignInvigilatorRequest,
@@ -187,7 +187,7 @@ async def assign_invigilator(
     return exam
 
 
-@router.post("/exams/{exam_id}/results", response_model=list[ExamMarkResponse])
+@router.post("/exams/{exam_id}/results/", response_model=list[ExamMarkResponse])
 async def post_results(
     exam_id: str,
     data: ExamMarksBulkCreate,
@@ -199,7 +199,29 @@ async def post_results(
     return await repo.bulk_save_marks(data)
 
 
-@router.post("/timetable", response_model=TimetableResponse, status_code=201)
+@router.get("/exams/{exam_id}/marks/", response_model=list[HODExamMarkResponse])
+async def get_exam_marks(
+    exam_id: str,
+    _: HODOnly,
+    db: AsyncSession = Depends(get_db),
+) -> list[HODExamMarkResponse]:
+    """Get all marks for a specific exam with student details."""
+    hod_repo = HODRepository(db)
+    marks = await hod_repo.get_exam_marks(exam_id)
+    
+    return [
+        HODExamMarkResponse(
+            id=m.id,
+            student_id=m.student_id,
+            student_name=m.student.user.full_name,
+            roll_number=m.student.roll_number,
+            marks_obtained=m.marks_obtained,
+            is_absent=m.is_absent
+        ) for m in marks
+    ]
+
+
+@router.post("/timetable/", response_model=TimetableResponse, status_code=201)
 async def create_timetable_slot(
     data: TimetableCreate,
     _: HODOnly,
@@ -214,7 +236,7 @@ async def create_timetable_slot(
     return slot
 
 
-@router.post("/announcements", response_model=AnnouncementResponse, status_code=201)
+@router.post("/announcements/", response_model=AnnouncementResponse, status_code=201)
 async def create_announcement(
     data: AnnouncementCreate,
     current_user: HODOnly,
@@ -247,7 +269,7 @@ async def create_announcement(
     )
 
 
-@router.get("/announcements", response_model=list[AnnouncementResponse])
+@router.get("/announcements/", response_model=list[AnnouncementResponse])
 async def list_announcements(
     _: HODOnly,
     db: AsyncSession = Depends(get_db),
@@ -276,7 +298,7 @@ async def list_announcements(
     return responses
 
 
-@router.delete("/announcements/{announcement_id}", status_code=204)
+@router.delete("/announcements/{announcement_id}/", status_code=204)
 async def delete_announcement(
     announcement_id: str,
     _: HODOnly,
@@ -292,3 +314,73 @@ async def delete_announcement(
         raise NotFoundError("Announcement", announcement_id)
     await db.delete(ann)
     await db.commit()
+
+@router.get("/subjects/", response_model=list[HODSubjectResponse])
+async def list_department_subjects(
+    current_user: HODOnly,
+    db: AsyncSession = Depends(get_db),
+) -> list[HODSubjectResponse]:
+    """List all subjects in the HOD's department."""
+    repo = HODRepository(db)
+    department_id = await repo.get_department_by_user_id(current_user["sub"])
+    if not department_id:
+        raise ForbiddenError("HOD profile not found or department not assigned.")
+    
+    return await repo.get_department_subjects(department_id)
+
+@router.get("/students/", response_model=list[HODStudentResponse])
+async def list_department_students(
+    current_user: HODOnly,
+    db: AsyncSession = Depends(get_db),
+) -> list[HODStudentResponse]:
+    """List all students in the HOD's department."""
+    repo = HODRepository(db)
+    department_id = await repo.get_department_by_user_id(current_user["sub"])
+    if not department_id:
+        raise ForbiddenError("HOD profile not found or department not assigned.")
+    
+    students = await repo.get_department_students(department_id)
+    return [
+        HODStudentResponse(
+            id=s.id,
+            name=s.user.full_name,
+            roll_number=s.roll_number,
+            avatar_url=s.user.avatar_url
+        ) for s in students
+    ]
+
+@router.get("/timetable/", response_model=list[HODTimetableResponse])
+async def get_department_timetable(
+    current_user: HODOnly,
+    day_of_week: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> list[HODTimetableResponse]:
+    """Get the weekly timetable for the department."""
+    from app.models.timetable import DayOfWeek
+    repo = HODRepository(db)
+    department_id = await repo.get_department_by_user_id(current_user["sub"])
+    if not department_id:
+        raise ForbiddenError("HOD profile not found or department not assigned.")
+    
+    day_enum = None
+    if day_of_week:
+        day_enum = DayOfWeek(day_of_week.upper())
+        
+    slots = await repo.get_department_timetable(department_id, day_enum)
+    
+    # Transform to include subject name/code for UI convenience
+    responses = []
+    for slot in slots:
+        responses.append(HODTimetableResponse(
+            id=slot.id,
+            subject_id=slot.subject_id,
+            subject_name=slot.subject.name,
+            subject_code=slot.subject.code,
+            day_of_week=slot.day_of_week,
+            start_time=slot.start_time.strftime("%H:%M"),
+            end_time=slot.end_time.strftime("%H:%M"),
+            room=slot.room or "TBD"
+        ))
+    return responses
+
+    return responses
